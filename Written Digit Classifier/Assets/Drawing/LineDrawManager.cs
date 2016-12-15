@@ -41,8 +41,8 @@ public class LineDrawManager : MonoBehaviour {
             current2DLine.material = mat;
             current2DLine.SetWidth(width,width);
           
-            current2DLine.startWidth = .03f;
-            current2DLine.endWidth = .03f;
+            current2DLine.startWidth = .05f;
+            current2DLine.endWidth = .05f;
             index = 0;
             lines.Add(g);
             print(current2DLine.startWidth);
