@@ -7,40 +7,52 @@ using AForge;
 using AForge.Imaging.Filters;
 
 public class TestBMP : MonoBehaviour {
-
+    public GameObject sphere;
+    public Material green, red;
     //size of resized image, should be 30 or less
     int imgSizexy = 30;
-    
+
     //camera which we will be writing from
     public Camera c;
 
     //stream to write pixel data from
     private StreamWriter writeNumbers;
 
+    public SteamVR_TrackedObject trackedObj;
+
+
     // Use this for initialization
     void Start() {
 
         //write numbers to this file
         writeNumbers = File.CreateText(Application.dataPath + "/1.csv");
-        
-        Bitmap b = FilterImage(TakeCameraSnapshot());
 
-         b.Save(Application.dataPath + "/HIIII.jpg");
-
-        StartCoroutine(SaveImageAsInt(b));
+        sphere.GetComponent<Renderer>().material = green;
 
 
+    }
 
+    public void Update() {
+        var device = SteamVR_Controller.Input((int)trackedObj.index);
+        if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Grip)) {
+            sphere.GetComponent<Renderer>().material = red;
+            Bitmap b = FilterImage(TakeCameraSnapshot());
+
+            b.Save(Application.dataPath + "/HIIII.jpg");
+
+            StartCoroutine(SaveImageAsInt(b));
+
+        }
     }
 
     public void OnApplicationQuit() {
         writeNumbers.Close();
     }
 
-  
+
     Bitmap FilterImage(Texture2D x) {
         //import the img as a bitmap
-        Bitmap b = new Bitmap(Image.FromStream(new MemoryStream(x.EncodeToJPG())), new Size(30, 30));
+        Bitmap b = new Bitmap(Image.FromStream(new MemoryStream(x.EncodeToJPG())), new Size(imgSizexy, imgSizexy));
         // new Bitmap(Image.FromFile(path), new Size(imgSizexy, imgSizexy));
 
         //grayscale it
@@ -48,7 +60,7 @@ public class TestBMP : MonoBehaviour {
         Bitmap grayImg = gray.Apply(b);
 
         //threshold it
-        Threshold filter = new Threshold(100);
+        Threshold filter = new Threshold(150);
         filter.ApplyInPlace(grayImg);
 
         return grayImg;
@@ -79,7 +91,9 @@ public class TestBMP : MonoBehaviour {
             }
             yield return null;
         }
+       // print(writeLinetoFile);
         writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
+        sphere.GetComponent<Renderer>().material = green;
     }
 
     Texture2D TakeCameraSnapshot() {
