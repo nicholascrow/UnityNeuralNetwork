@@ -5,6 +5,7 @@ using UnityEngine;
 using System.Drawing;
 using AForge;
 using AForge.Imaging.Filters;
+using System;
 
 public class TestBMP : MonoBehaviour {
     public GameObject sphere;
@@ -25,10 +26,11 @@ public class TestBMP : MonoBehaviour {
     void Start() {
 
         //write numbers to this file
-        writeNumbers = File.CreateText(Application.dataPath + "/1.csv");
+//        writeNumbers = File.CreateText(Application.dataPath + "/2.csv");
 
         sphere.GetComponent<Renderer>().material = green;
 
+        StartCoroutine(Other());
 
     }
 
@@ -38,7 +40,7 @@ public class TestBMP : MonoBehaviour {
             sphere.GetComponent<Renderer>().material = red;
             Bitmap b = FilterImage(TakeCameraSnapshot());
 
-            b.Save(Application.dataPath + "/HIIII.jpg");
+            b.Save(Application.dataPath + "/test.jpg");
 
             StartCoroutine(SaveImageAsInt(b));
 
@@ -76,8 +78,8 @@ public class TestBMP : MonoBehaviour {
             //for the y pixels
             for(int j = 0; j < imgSizexy; j++) {
                 if(imgNow.GetPixel(i, j).Name.Contains("ff000000")) {
-                    //0 for black
-                    imgAsNumber[i * imgSizexy + j] = 0;
+                    //-1 for black
+                    imgAsNumber[i * imgSizexy + j] = -1;
                 }
                 else if(imgNow.GetPixel(i, j).Name.Contains("ffffffff")) {
                     //1 for white
@@ -114,97 +116,99 @@ public class TestBMP : MonoBehaviour {
 
     }
 
-    void Other() {
-        /*start copied*/
-        //AForge.Neuro.ActivationNetwork network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
-        //network.Randomize();
-        //AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
-        //learning.LearningRate = 1;
-        /*end copied*/
-        double[][] input = new double[4][];
-        for(int i = 0; i < 4; i++) {
-            input[i] = new double[imgSizexy * imgSizexy];
+    IEnumerator Other() {
+        sphere.GetComponent<Renderer>().material = red;
+        AForge.Neuro.ActivationNetwork network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
+        network.Randomize();
+        AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
+        learning.LearningRate = 1;
+
+
+        string[] lines1 = File.ReadAllLines(Application.dataPath + "/1.csv");
+
+        string[] lines2 = File.ReadAllLines(Application.dataPath + "/2.csv");
+
+        //double[][] input = new double[lines.Length][];
+        //for(int i = 0; i < lines.Length; i++) {
+        //    input[i] = new double[imgSizexy * imgSizexy];
+        //    lines[i].Split(',').CopyTo(input[i], 0);
+        //}
+
+        double[][] input = new double[6][];
+        for(int i = 0; i < 6; i++) {
+            yield return null;
+            if(i < 3) {
+                double[] p = new double[lines1[i].Split(',').Length];
+                string[] s = lines1[i].Split(',');
+                for(int j = 0; j < s.Length; j++) {
+                    p[j] = Convert.ToInt32(s[j]);
+                }
+                input[i] = p;
+            }
+            else {
+                double[] p = new double[lines2[i - 3].Split(',').Length];
+                string[] s = lines2[i - 3].Split(',');
+                for(int j = 0; j < s.Length; j++) {
+                    p[j] = Convert.ToInt32(s[j]);
+                }
+                input[i] = p;
+            }
+
         }
 
 
-        //   Bitmap b = FilterImage(Application.dataPath + "/cat.jpg");
-        //   b.Save(Application.dataPath + "/hi.jpg");
-        // StartCoroutine(SaveNewFiles());
 
+        bool needToStop = false;
+        int iteration = 0;
+        while(!needToStop) {
+            yield return null;
+            double error = learning.RunEpoch(input, new double[6][] {
+                    new double[3] { 1, -1, -1 },new double[3] { 1, -1, -1 },new double[3] { 1, -1, -1 },//A
+                    new double[3] { -1, 1, -1 },new double[3] { -1, 1, -1 },new double[3] { -1, 1, -1 }}//C
+                                                                                                        /*new double[9][]{ input[0],input[0],input[0],input[1],input[1],input[1],input[2],input[2],input[2]}*/
+                );
+            //learning.LearningRate -= learning.LearningRate / 1000;
+            if(error == 0)
+                break;
+            else if(iteration < 1000)
+                iteration++;
+            else
+                needToStop = true;
+            Debug.LogFormat("{0} {1}", error, iteration);
+        }
 
+        Bitmap b = AForge.Imaging.Image.FromFile(Application.dataPath + "/test.jpg");
+        //Reading A Sample to test Netwok
+        double[] sample = new double[900];
+        for(int j = 0; j < imgSizexy; j++)
+            for(int k = 0; k < imgSizexy; k++) {
+                if(b.GetPixel(j, k).Name.Contains("ff000000")) {
+                    //-1 for black
+                    sample[j * imgSizexy + k] = -1;
+                }
+                else if(b.GetPixel(j, k).Name.Contains("ffffffff")) {
+                    //1 for white
+                    sample[j * imgSizexy + k] = 1;
+                }
+                else {
+                    throw new InvalidDataException();
+                }
 
-
-
-
-        ////text file with pixel values
-        //var sr = File.CreateText(Application.dataPath + "/test");
-
-        ////for the x pixels
-        //for(int i = 0; i < imgSizexy; i++) {
-
-        //    //print string
-        //    string writeLinetoFile = "";
-
-        //    //for the y pixels
-        //    for(int j = 0; j < imgSizexy; j++) {
-        //        if(grayImg.GetPixel(i, j).Name.Contains("ff000000")) {
-        //            //0 for black
-        //            img[i * imgSizexy + j] = 0;
-        //        }
-        //        else if(grayImg.GetPixel(i, j).Name.Contains("ffffffff")) {
-        //            //1 for white
-        //            img[i * imgSizexy + j] = 1;
-        //        }
-        //        else {
-        //            throw new InvalidDataException();
-        //        }
-
-        //        writeLinetoFile += img[i * imgSizexy + j];
-        //    }
-        //    sr.WriteLine(writeLinetoFile);
-        //}
-        //sr.Close();
-
-
-
-
-
-
-        //    bool needToStop = false;
-        //    int iteration = 0;
-        //    while(!needToStop) {
-        //        double error = learning.RunEpoch(input, new double[9][] {
-        //            new double[3] { 1, -1, -1 },new double[3] { 1, -1, -1 },new double[3] { 1, -1, -1 },//A
-        //            new double[3] { -1, 1, -1 },new double[3] { -1, 1, -1 },new double[3] { -1, 1, -1 },//B
-        //            new double[3] { -1, -1, 1 },new double[3] { -1, -1, 1 },new double[3] { -1, -1, 1 }}//C
-        //                                                                                                 /*new double[9][]{ input[0],input[0],input[0],input[1],input[1],input[1],input[2],input[2],input[2]}*/
-        //            );
-        //        //learning.LearningRate -= learning.LearningRate / 1000;
-        //        if(error == 0)
-        //            break;
-        //        else if(iteration < 1000)
-        //            iteration++;
-        //        else
-        //            needToStop = true;
-        //        System.Diagnostics.Debug.WriteLine("{0} {1}", error, iteration);
-        //    }
-        //    Bitmap b = AForge.Imaging.Image.FromFile(path + "\\b1.bmp");
-        //    //Reading A Sample to test Netwok
-        //    double[] sample = new double[900];
-        //    for(int j = 0; j < imgSizexy; j++)
-        //        for(int k = 0; k < imgSizexy; k++) {
-        //            if(b.GetPixel(j, k).ToKnownColor() == KnownColor.White) {
-        //                sample[j * imgSizexy + k] = -1;
-        //            }
-        //            else
-        //                sample[j * imgSizexy + k] = 1;
-        //        }
-        //    foreach(double d in network.Compute(sample))
-        //        System.Diagnostics.Debug.WriteLine(d);//Output is Always C = {-1,-1,1}
-        //}
-
-
+                //if(b.GetPixel(j, k).ToKnownColor() == KnownColor.White) {
+                //    sample[j * imgSizexy + k] = -1;
+                //}
+                //else
+                //    sample[j * imgSizexy + k] = 1;
+            }
+        string s1 = "{";
+        foreach(double d in network.Compute(sample))
+            s1 += d + ", ";
+                s1 += "}";
+            Debug.LogError(s1);//Output is Always C = {-1,-1,1}
+        network.Save(Application.dataPath + "/OMGWORKING.bin");
+        sphere.GetComponent<Renderer>().material = green;
     }
 
 
 }
+
