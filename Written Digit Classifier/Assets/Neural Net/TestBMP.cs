@@ -21,6 +21,7 @@ public class TestBMP : MonoBehaviour {
 
     public SteamVR_TrackedObject trackedObj;
 
+    AForge.Neuro.ActivationNetwork network;
 
     // Use this for initialization
     void Start() {
@@ -37,12 +38,19 @@ public class TestBMP : MonoBehaviour {
     public void Update() {
         var device = SteamVR_Controller.Input((int)trackedObj.index);
         if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Grip)) {
-            sphere.GetComponent<Renderer>().material = red;
+           // sphere.GetComponent<Renderer>().material = red;
             Bitmap b = FilterImage(TakeCameraSnapshot());
 
-            b.Save(Application.dataPath + "/test.jpg");
+            string s1 = "{";
+            foreach(double d in network.Compute(GetSample(b)))
+                s1 += d + ", ";
+            s1 += "}";
+            Debug.LogError(s1);
+         //   network.Compute(GetSample(b));
 
-            StartCoroutine(SaveImageAsInt(b));
+           // b.Save(Application.dataPath + "/test.jpg");
+
+            //StartCoroutine(SaveImageAsInt(b));
 
         }
     }
@@ -118,7 +126,7 @@ public class TestBMP : MonoBehaviour {
 
     IEnumerator Other() {
         sphere.GetComponent<Renderer>().material = red;
-        AForge.Neuro.ActivationNetwork network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
+        network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
         network.Randomize();
         AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
         learning.LearningRate = 1;
@@ -209,6 +217,25 @@ public class TestBMP : MonoBehaviour {
         sphere.GetComponent<Renderer>().material = green;
     }
 
-
+    double[] GetSample(Bitmap b) {
+        double[] sample = new double[900];
+        for(int j = 0; j < imgSizexy; j++)
+            for(int k = 0; k < imgSizexy; k++) {
+                if(b.GetPixel(j, k).Name.Contains("ff000000")) {
+                    //-1 for black
+                    sample[j * imgSizexy + k] = -1;
+                }
+                else if(b.GetPixel(j, k).Name.Contains("ffffffff")) {
+                    //1 for white
+                    sample[j * imgSizexy + k] = 1;
+                }
+                else {
+                    throw new InvalidDataException();
+                }
+                
+             
+            }
+        return sample;
+    }
 }
 
