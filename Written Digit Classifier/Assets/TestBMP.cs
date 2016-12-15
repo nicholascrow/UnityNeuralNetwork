@@ -7,33 +7,24 @@ using AForge;
 using AForge.Imaging.Filters;
 
 public class TestBMP : MonoBehaviour {
-    int imgSizexy = 30;
-    public Camera c;
-    //public Texture2D x;
-    //  double[] img = new double[imgSizexy * imgSizexy];
 
+    //size of resized image, should be 30 or less
+    int imgSizexy = 30;
+    
+    //camera which we will be writing from
+    public Camera c;
+
+    //stream to write pixel data from
     private StreamWriter writeNumbers;
 
     // Use this for initialization
     void Start() {
-        writeNumbers = File.CreateText(Application.dataPath + "/test.csv");
 
-
-        // Setup a camera, texture and render texture
-        Camera cam = c;
-        RenderTexture r = new RenderTexture(512, 512, 24);
-        cam.targetTexture = r;
-        cam.Render();
-
-        //create texture to put the cam stuff onto
-        Texture2D tex = new Texture2D(512,512,TextureFormat.ARGB32, false);
-       
-        // Read pixels to texture
-        RenderTexture.active = r;
-        tex.ReadPixels(new Rect(0, 0, 512,512), 0, 0);
+        //write numbers to this file
+        writeNumbers = File.CreateText(Application.dataPath + "/1.csv");
 
         //  new Bitmap(new MemoryStream(x.EncodeToPNG()));
-        Bitmap b = FilterImage(tex);
+        Bitmap b = FilterImage(TakeCameraSnapshot());
 
          b.Save(Application.dataPath + "/HIIII.jpg");
 
@@ -45,6 +36,69 @@ public class TestBMP : MonoBehaviour {
 
     public void OnApplicationQuit() {
         writeNumbers.Close();
+    }
+
+  
+    Bitmap FilterImage(Texture2D x) {
+        //import the img as a bitmap
+        Bitmap b = new Bitmap(Image.FromStream(new MemoryStream(x.EncodeToJPG())), new Size(30, 30));
+        // new Bitmap(Image.FromFile(path), new Size(imgSizexy, imgSizexy));
+
+        //grayscale it
+        Grayscale gray = new Grayscale(.33, .33, .33);
+        Bitmap grayImg = gray.Apply(b);
+
+        //threshold it
+        Threshold filter = new Threshold(100);
+        filter.ApplyInPlace(grayImg);
+
+        return grayImg;
+    }
+
+    IEnumerator SaveImageAsInt(Bitmap imgNow) {
+        double[] imgAsNumber = new double[imgSizexy * imgSizexy];
+        //create csv file
+        //var sr = File.CreateText(Application.dataPath + "/test.csv");
+        string writeLinetoFile = "";
+        //for the x pixels
+        for(int i = 0; i < imgSizexy; i++) {
+            //for the y pixels
+            for(int j = 0; j < imgSizexy; j++) {
+                if(imgNow.GetPixel(i, j).Name.Contains("ff000000")) {
+                    //0 for black
+                    imgAsNumber[i * imgSizexy + j] = 0;
+                }
+                else if(imgNow.GetPixel(i, j).Name.Contains("ffffffff")) {
+                    //1 for white
+                    imgAsNumber[i * imgSizexy + j] = 1;
+                }
+                else {
+                    throw new InvalidDataException();
+                }
+
+                writeLinetoFile += imgAsNumber[i * imgSizexy + j] + ",";
+            }
+            yield return null;
+        }
+        writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
+    }
+
+    Texture2D TakeCameraSnapshot() {
+        // Setup a camera, texture and render texture
+        Camera cam = c;
+        RenderTexture r = new RenderTexture(512, 512, 24);
+        cam.targetTexture = r;
+        cam.Render();
+
+        //create texture to put the cam stuff onto
+        Texture2D tex = new Texture2D(512, 512, TextureFormat.ARGB32, false);
+
+        // Read pixels to texture
+        RenderTexture.active = r;
+        tex.ReadPixels(new Rect(0, 0, 512, 512), 0, 0);
+
+        return tex;
+
     }
 
     void Other() {
@@ -60,8 +114,8 @@ public class TestBMP : MonoBehaviour {
         }
 
 
-     //   Bitmap b = FilterImage(Application.dataPath + "/cat.jpg");
-     //   b.Save(Application.dataPath + "/hi.jpg");
+        //   Bitmap b = FilterImage(Application.dataPath + "/cat.jpg");
+        //   b.Save(Application.dataPath + "/hi.jpg");
         // StartCoroutine(SaveNewFiles());
 
 
@@ -138,47 +192,6 @@ public class TestBMP : MonoBehaviour {
 
 
     }
-    Bitmap FilterImage(Texture2D x) {
-        //import the img as a bitmap
-        Bitmap b = new Bitmap(Image.FromStream(new MemoryStream(x.EncodeToJPG())), new Size(30, 30));
-        // new Bitmap(Image.FromFile(path), new Size(imgSizexy, imgSizexy));
 
-        //grayscale it
-        Grayscale gray = new Grayscale(.33, .33, .33);
-        Bitmap grayImg = gray.Apply(b);
 
-        //threshold it
-        Threshold filter = new Threshold(100);
-        filter.ApplyInPlace(grayImg);
-
-        return grayImg;
-    }
-
-    IEnumerator SaveImageAsInt(Bitmap imgNow) {
-        double[] imgAsNumber = new double[imgSizexy * imgSizexy];
-        //create csv file
-        //var sr = File.CreateText(Application.dataPath + "/test.csv");
-        string writeLinetoFile = "";
-        //for the x pixels
-        for(int i = 0; i < imgSizexy; i++) {
-            //for the y pixels
-            for(int j = 0; j < imgSizexy; j++) {
-                if(imgNow.GetPixel(i, j).Name.Contains("ff000000")) {
-                    //0 for black
-                    imgAsNumber[i * imgSizexy + j] = 0;
-                }
-                else if(imgNow.GetPixel(i, j).Name.Contains("ffffffff")) {
-                    //1 for white
-                    imgAsNumber[i * imgSizexy + j] = 1;
-                }
-                else {
-                    throw new InvalidDataException();
-                }
-
-                writeLinetoFile += imgAsNumber[i * imgSizexy + j] + ",";
-            }
-            yield return null;
-        }
-        writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
-    }
 }
