@@ -65,7 +65,7 @@ public class TestBMP : MonoBehaviour {
             case Status.Test:
                 break;
             case Status.MakeData:
-                writeNumbers = File.AppendText(Application.dataPath + "/" + 2 + ".csv");
+                writeNumbers = File.AppendText(Application.dataPath + "/" + currentAddIndex + ".csv");
                 break;
             default:
                 break;
@@ -164,18 +164,29 @@ public class TestBMP : MonoBehaviour {
 
     Bitmap FilterImage(Texture2D x) {
         //import the img as a bitmap
-        Bitmap b = new Bitmap(System.Drawing.Image.FromStream(new MemoryStream(x.EncodeToJPG())), new Size(imgSizexy, imgSizexy));
-        // new Bitmap(Image.FromFile(path), new Size(imgSizexy, imgSizexy));
-
+        System.Drawing.Image i = System.Drawing.Image.FromStream(new MemoryStream(x.EncodeToJPG()));
+        Bitmap b = new Bitmap(i);
+       
         //grayscale it
         Grayscale gray = new Grayscale(.33, .33, .33);
         Bitmap grayImg = gray.Apply(b);
 
         //threshold it
-        Threshold filter = new Threshold(150);
-        filter.ApplyInPlace(grayImg);
+        Threshold threshFilter = new Threshold(150);
+        threshFilter.ApplyInPlace(grayImg);
 
-        return grayImg;
+        Invert invFilter = new Invert();
+        invFilter.ApplyInPlace(grayImg);
+
+        //new stuff
+        ExtractBiggestBlob a = new ExtractBiggestBlob();
+        grayImg = a.Apply(grayImg);
+        //grayImg.Save(Application.dataPath + "/qh.jpg");
+       // invFilter.ApplyInPlace(grayImg);
+        threshFilter.ApplyInPlace(grayImg);
+
+
+        return new Bitmap(grayImg, new Size(30, 30));
     }
 
     IEnumerator SaveImageAsInt(Bitmap imgNow) {
@@ -187,15 +198,17 @@ public class TestBMP : MonoBehaviour {
         for(int i = 0; i < imgSizexy; i++) {
             //for the y pixels
             for(int j = 0; j < imgSizexy; j++) {
-                if(imgNow.GetPixel(i, j).Name.Contains("ff000000")) {
+                
+                if(imgNow.GetPixel(i, j).R < 100) {
                     //-1 for black
                     imgAsNumber[i * imgSizexy + j] = -1;
                 }
-                else if(imgNow.GetPixel(i, j).Name.Contains("ffffffff")) {
+                else if(imgNow.GetPixel(i, j).R > 100) {
                     //1 for white
                     imgAsNumber[i * imgSizexy + j] = 1;
                 }
                 else {
+                    print(imgNow.GetPixel(i, j).Name);
                     throw new InvalidDataException();
                 }
 
@@ -340,11 +353,11 @@ public class TestBMP : MonoBehaviour {
         double[] sample = new double[imgSizexy * imgSizexy];
         for(int j = 0; j < imgSizexy; j++)
             for(int k = 0; k < imgSizexy; k++) {
-                if(b.GetPixel(j, k).Name.Contains("ff000000")) {
+                if(b.GetPixel(j, k).R < 100) {
                     //-1 for black
                     sample[j * imgSizexy + k] = -1;
                 }
-                else if(b.GetPixel(j, k).Name.Contains("ffffffff")) {
+                else if(b.GetPixel(j, k).R > 100) {
                     //1 for white
                     sample[j * imgSizexy + k] = 1;
                 }
@@ -375,11 +388,11 @@ public class TestBMP : MonoBehaviour {
             for(int k = 0; k < imgSizexy; k++) {
 
 
-                if(b.GetPixel(j, k).Name.Contains("ff000000")) {
+                if(b.GetPixel(j, k).R < 100) {
                     //-1 for black
                     sample[j * imgSizexy + k] = -1;
                 }
-                else if(b.GetPixel(j, k).Name.Contains("ffffffff")) {
+                else if(b.GetPixel(j, k).R > 100) {
                     //1 for white
                     sample[j * imgSizexy + k] = 1;
                 }

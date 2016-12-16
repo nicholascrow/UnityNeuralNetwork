@@ -6,12 +6,14 @@ public class LineDrawManager : MonoBehaviour {
 
     //the controller to draw with
     public SteamVR_TrackedObject trackedObj;
-
-    //3d line drawing
- //   private CustomLineRenderer current3DLine;
+    
+    //this is the current line
     private LineRenderer current2DLine;
 
+    //width of the line //TODO Not working right now
     public float width = 3;
+
+    //material for the line
     public Material mat;
 
     int index = 0;
