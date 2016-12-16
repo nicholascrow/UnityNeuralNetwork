@@ -20,7 +20,7 @@ public class TestBMP : MonoBehaviour {
 
     #region non-neural network declarations
     //text to display on
-    public Text epochText, indexText;
+    public Text epochText, indexText, errorText;
 
     //colored sphere which changes colors if you need to wait for training
     public GameObject sphere;
@@ -105,7 +105,7 @@ public class TestBMP : MonoBehaviour {
                         epochText.text = "You entered a 0!" + networkOutput;
                         //one
                     }
-                    else if(computation[0] == -1 ) {
+                    else if(computation[0] == -1) {
                         epochText.text = "You entered a 1!" + networkOutput;
                         //two
                     }
@@ -146,7 +146,10 @@ public class TestBMP : MonoBehaviour {
         else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Trigger)) {
             currentAddIndex += 1;
             currentAddIndex = currentAddIndex % 2;
-            indexText.text = "Current Index: " + currentAddIndex;
+            //indexText.text = "Current Index: " + currentAddIndex;
+            indexText.text = "Current Index: " + currentAddIndex
+                 + "\nIndex 0: " + numberArray[0].Count + " items"
+                 + "\nIndex 1: " + numberArray[1].Count + " items";
         }
 
         if(status == Status.Train) {
@@ -166,7 +169,7 @@ public class TestBMP : MonoBehaviour {
         //import the img as a bitmap
         System.Drawing.Image i = System.Drawing.Image.FromStream(new MemoryStream(x.EncodeToJPG()));
         Bitmap b = new Bitmap(i);
-       
+
         //grayscale it
         Grayscale gray = new Grayscale(.33, .33, .33);
         Bitmap grayImg = gray.Apply(b);
@@ -182,7 +185,7 @@ public class TestBMP : MonoBehaviour {
         ExtractBiggestBlob a = new ExtractBiggestBlob();
         grayImg = a.Apply(grayImg);
         //grayImg.Save(Application.dataPath + "/qh.jpg");
-       // invFilter.ApplyInPlace(grayImg);
+        // invFilter.ApplyInPlace(grayImg);
         threshFilter.ApplyInPlace(grayImg);
 
 
@@ -198,12 +201,12 @@ public class TestBMP : MonoBehaviour {
         for(int i = 0; i < imgSizexy; i++) {
             //for the y pixels
             for(int j = 0; j < imgSizexy; j++) {
-                
+
                 if(imgNow.GetPixel(i, j).R < 100) {
                     //-1 for black
                     imgAsNumber[i * imgSizexy + j] = -1;
                 }
-                else if(imgNow.GetPixel(i, j).R > 100) {
+                else if(imgNow.GetPixel(i, j).R >= 100) {
                     //1 for white
                     imgAsNumber[i * imgSizexy + j] = 1;
                 }
@@ -220,7 +223,11 @@ public class TestBMP : MonoBehaviour {
             yield return null;
         }
         numberArray[currentAddIndex].Add(imgAsNumber);
-        // print(writeLinetoFile);
+        indexText.text = "Current Index: " + currentAddIndex
+            + "\nIndex 0: " + numberArray[0].Count + " items"
+            + "\nIndex 1: " + numberArray[1].Count + " items";
+
+
         writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
         sphere.GetComponent<Renderer>().material = green;
         ClearCanvas = true;
@@ -308,9 +315,9 @@ public class TestBMP : MonoBehaviour {
                 input[i] = numberArray[1][i - smallestArraySize];
             }
         }
-        print(numberArray[0].Count);// shold be 3
-        print(input.GetLength(0));
-        print(input[0][0]);
+        if(input.Length == 0) {
+            throw new NotSupportedException("You need to add something for both characters!");
+        }
 
         // numberArray[0].CopyTo(input, 0);
         // numberArray[1].CopyTo(input, smallestArraySize);
@@ -329,16 +336,14 @@ public class TestBMP : MonoBehaviour {
 
         bool needToStop = false;
         int iteration = 0;
-        int maxIteration = 1000;
+        int maxIteration = 5000;
         while(!needToStop) {
             epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
             yield return null;
             double error = learning.RunEpoch(input, output);
-
+            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 10));
             learning.LearningRate -= learning.LearningRate / 1000;
             if(error == 0) {
-                print("why?");
-               // iteration++;
                 break;
             }
             else if(iteration < maxIteration)
