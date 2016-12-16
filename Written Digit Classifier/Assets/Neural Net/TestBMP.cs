@@ -36,6 +36,8 @@ public class TestBMP : MonoBehaviour {
 
     #region neuralnet declarations
 
+    public GameObject addTextureHere;
+
     public int currentAddIndex = 0;
     //size of resized image, should be 30 or less
     int imgSizexy = 30;
@@ -93,7 +95,7 @@ public class TestBMP : MonoBehaviour {
                     // beginning of array
                     string networkOutput = "{ ";
                     //for each item in the computation array we print the output\
-                    print(GetSample(b).Length);
+                    //print(GetSample(b).Length);
                     double[] computation = network.Compute(GetSample(b));
                     foreach(double d in computation) {
                         networkOutput += d + ", ";
@@ -138,6 +140,7 @@ public class TestBMP : MonoBehaviour {
         else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.ApplicationMenu)) {
             if(status == Status.MakeData) {
                 status = Status.Train;
+                StartCoroutine(displayImage());
             }
             else {
                 status = Status.MakeData;
@@ -409,5 +412,52 @@ public class TestBMP : MonoBehaviour {
             }
         return sample;
     }
+
+    IEnumerator displayImage() {
+        // Bitmap b = new Bitmap(numberArray[0].Count * 30,60);
+
+      /*  Texture2D x = new Texture2D(30, 30);
+        for(int i = 0; i < 30; i++) {
+            yield return null;
+            for(int j = 0; j < 30; j++) {
+                x.SetPixel(i,j, (numberArray[0][0][i *30 + j] == 1) ? UnityEngine.Color.white : UnityEngine.Color.black);
+            }
+        }*/
+       
+        Texture2D x = new Texture2D(numberArray[0].Count * 30, 60);
+        for(int k = 0; k < 30; k++) {
+            for(int i = 0; i < numberArray[0].Count; i++) {
+                yield return null;
+                for(int j = 0; j < 30; j++) {
+                    x.SetPixel(i * 30 + j, k, (numberArray[0][i][j * 30 + k] == -1) ? UnityEngine.Color.white : UnityEngine.Color.black);
+                }
+            }
+        }
+        for(int k = 30; k < 60; k++) {
+            for(int i = 0; i < numberArray[0].Count; i++) {
+                yield return null;
+                for(int j = 0; j < 30; j++) {
+                    try {
+
+                  
+                    x.SetPixel(i * 30 + j, k, (numberArray[1][i][j * 30 + k] == -1) ? UnityEngine.Color.white : UnityEngine.Color.black);
+                    }
+                    catch(Exception) {
+                        continue;
+                    }
+                }
+            }
+        }
+        x.filterMode = FilterMode.Point;
+        x.Apply();
+        Material m = new Material(Shader.Find("Standard"));
+        m.SetTexture("_MainTex", x);
+        addTextureHere.GetComponent<Renderer>().material = m;
+        addTextureHere.GetComponent<Renderer>().sharedMaterial = m;
+        
+
+
+    }
+   
 }
 
