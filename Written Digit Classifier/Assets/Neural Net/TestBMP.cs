@@ -15,14 +15,12 @@ public class TestBMP : MonoBehaviour {
         MakeData = 2
     }
 
-
-    private Status status = Status.Train;
-
+    private Status status = Status.MakeData;
 
 
     #region non-neural network declarations
     //text to display on
-    public Text textToDisplay;
+    public Text epochText, indexText;
 
     //colored sphere which changes colors if you need to wait for training
     public GameObject sphere;
@@ -33,10 +31,12 @@ public class TestBMP : MonoBehaviour {
     //the controller so we can perform actions
     public SteamVR_TrackedObject trackedObj;
 
+    public bool ClearCanvas = false;
     #endregion
 
     #region neuralnet declarations
 
+    public int currentAddIndex = 0;
     //size of resized image, should be 30 or less
     int imgSizexy = 30;
 
@@ -49,6 +49,7 @@ public class TestBMP : MonoBehaviour {
     //the network itself
     AForge.Neuro.ActivationNetwork network;
 
+    private List<double[]>[] numberArray;
 
     #endregion
 
@@ -59,7 +60,7 @@ public class TestBMP : MonoBehaviour {
 
         switch(status) {
             case Status.Train:
-                StartCoroutine(Other());
+                StartCoroutine(TrainNetwork());
                 break;
             case Status.Test:
                 break;
@@ -70,13 +71,15 @@ public class TestBMP : MonoBehaviour {
                 break;
         }
 
-
+        numberArray = new List<double[]>[2];
+        for(int i = 0; i < 2; i++) {
+            numberArray[i] = new List<double[]>();
+        }
     }
 
     public void Update() {
 
         var device = SteamVR_Controller.Input((int)trackedObj.index);
-
 
         if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Grip)) {
             //filter the image just drawn on the canvas
@@ -90,35 +93,37 @@ public class TestBMP : MonoBehaviour {
                     // beginning of array
                     string networkOutput = "{ ";
                     //for each item in the computation array we print the output\
+                    print(GetSample(b).Length);
                     double[] computation = network.Compute(GetSample(b));
                     foreach(double d in computation) {
                         networkOutput += d + ", ";
                     }
-                    double[] one = new double[3] { 1,1,1};
-                    double[] two = new double[3] { -1, -1,-1 };
+                    //final brace for presentation
+                    networkOutput = networkOutput.TrimEnd(',') + " }";
 
-                    if(computation == one) {
-                        textToDisplay.text = "You entered a 1!";
+                    if(computation[0] == 1) {
+                        epochText.text = "You entered a 0!" + networkOutput;
                         //one
                     }
-                    else if(computation == two) { 
-                        textToDisplay.text = "You entered a 2!";
+                    else if(computation[0] == -1 ) {
+                        epochText.text = "You entered a 1!" + networkOutput;
                         //two
                     }
+                    else
+                        epochText.text = networkOutput;
 
-                    //final brace for presentation
-                    networkOutput += " }";
+
 
                     //print this to the console
                     Debug.LogError(networkOutput);
-
-
+                    ClearCanvas = true;
+                    b = null;
                     break;
                 case Status.MakeData:
 
                     //make a sphere this color
                     sphere.GetComponent<Renderer>().material = red;
-                    
+
                     //save an image for testing
                     b.Save(Application.dataPath + "/test.jpg");
 
@@ -130,11 +135,30 @@ public class TestBMP : MonoBehaviour {
                     break;
             }
         }
+        else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.ApplicationMenu)) {
+            if(status == Status.MakeData) {
+                status = Status.Train;
+            }
+            else {
+                status = Status.MakeData;
+            }
+        }
+        else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Trigger)) {
+            currentAddIndex += 1;
+            currentAddIndex = currentAddIndex % 2;
+            indexText.text = "Current Index: " + currentAddIndex;
+        }
+
+        if(status == Status.Train) {
+            StartCoroutine(TrainNetwork());
+
+            status = Status.Test;
+        }
     }
 
     public void OnApplicationQuit() {
         if(writeNumbers != null)
-             writeNumbers.Close();
+            writeNumbers.Close();
     }
 
 
@@ -177,11 +201,16 @@ public class TestBMP : MonoBehaviour {
 
                 writeLinetoFile += imgAsNumber[i * imgSizexy + j] + ",";
             }
+
+            // need to implement so as to add things other than just 0.
+
             yield return null;
         }
+        numberArray[currentAddIndex].Add(imgAsNumber);
         // print(writeLinetoFile);
         writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
         sphere.GetComponent<Renderer>().material = green;
+        ClearCanvas = true;
     }
 
     Texture2D TakeCameraSnapshot() {
@@ -202,7 +231,7 @@ public class TestBMP : MonoBehaviour {
 
     }
 
-    IEnumerator Other() {
+    IEnumerator TrainNetwork() {
 
         //while we train the network we shouldnt allow user input
         sphere.GetComponent<Renderer>().material = red;
@@ -211,9 +240,10 @@ public class TestBMP : MonoBehaviour {
         network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
         network.Randomize();
         AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
+        //AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
         learning.LearningRate = 1;
 
-        /*THE BELOW COULD BE REMOVED WITH OPTIMIZATION THAT DOESNT SAVE TO THE FILE SYSTEM*/
+        /*THE BELOW COULD BE REMOVED WITH OPTIMIZATION THAT DOESNT SAVE TO THE FILE SYSTEM
         string[] lines1 = File.ReadAllLines(Application.dataPath + "/1.csv");
 
         string[] lines2 = File.ReadAllLines(Application.dataPath + "/2.csv");
@@ -240,23 +270,64 @@ public class TestBMP : MonoBehaviour {
             }
 
         }
-        /*END COULD BE REMOVED*/
+
+        double[][] output = new double[6][] {
+                    new double[3] { 1, 1, 1},new double[3] { 1, 1 ,1},new double[3] { 1, 1 ,1},//1
+                    new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1}//2
+        };
+           
+
+
+        END COULD BE REMOVED*/
+
+
+
+
+        //creating the input array
+        int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
+        double[][] input = new double[smallestArraySize * 2][];
+        for(int i = 0; i < input.GetLength(0); i++) {
+            print("input is actually the right size");
+            if(i < smallestArraySize) {
+                input[i] = numberArray[0][i];
+            }
+            else {
+                input[i] = numberArray[1][i - smallestArraySize];
+            }
+        }
+        print(numberArray[0].Count);// shold be 3
+        print(input.GetLength(0));
+        print(input[0][0]);
+
+        // numberArray[0].CopyTo(input, 0);
+        // numberArray[1].CopyTo(input, smallestArraySize);
+
+        double[][] output = new double[smallestArraySize * 2][];
+        for(int i = 0; i < smallestArraySize; i++) {
+            //not sure if this is correct
+            output[i] = new double[3] { 1, 1, 1 };
+        }
+        for(int i = smallestArraySize; i < smallestArraySize * 2; i++) {
+            output[i] = new double[3] { -1, -1, -1 };
+        }
+
+
 
 
         bool needToStop = false;
         int iteration = 0;
         int maxIteration = 1000;
         while(!needToStop) {
-            textToDisplay.text = "Current Epoch: " + iteration + "/" + maxIteration;
+            epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
             yield return null;
-            double error = learning.RunEpoch(input, new double[6][] {
-                    new double[3] { 1, 1, 1},new double[3] { 1, 1 ,1},new double[3] { 1, 1 ,1},//1
-                    new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1}}//2
-                                                                                               /*new double[9][]{ input[0],input[0],input[0],input[1],input[1],input[1],input[2],input[2],input[2]}*/
-                );
-            //learning.LearningRate -= learning.LearningRate / 1000;
-            if(error == 0)
+            double error = learning.RunEpoch(input, output);
+
+            learning.LearningRate -= learning.LearningRate / 1000;
+            if(error == 0) {
+                print("why?");
+               // iteration++;
                 break;
+            }
             else if(iteration < maxIteration)
                 iteration++;
             else
@@ -281,7 +352,7 @@ public class TestBMP : MonoBehaviour {
                     throw new InvalidDataException();
                 }
 
-              
+
             }
 
         //display thingy
@@ -299,9 +370,11 @@ public class TestBMP : MonoBehaviour {
     }
 
     double[] GetSample(Bitmap b) {
-        double[] sample = new double[imgSizexy];
+        double[] sample = new double[imgSizexy * imgSizexy];
         for(int j = 0; j < imgSizexy; j++)
             for(int k = 0; k < imgSizexy; k++) {
+
+
                 if(b.GetPixel(j, k).Name.Contains("ff000000")) {
                     //-1 for black
                     sample[j * imgSizexy + k] = -1;
