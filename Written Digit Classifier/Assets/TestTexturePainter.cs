@@ -4,7 +4,9 @@ using UnityEngine;
 
 public class TestTexturePainter : MonoBehaviour {
 
-    SteamVR_TrackedObject trackedObj;
+    public SteamVR_TrackedObject trackedObj;
+
+    public TestBMP tester;
 
     public Texture2D whitboardBak;
     public Texture2D whiteboardTex;
@@ -36,19 +38,21 @@ public class TestTexturePainter : MonoBehaviour {
             int size = 30;
             for(int i = 0; i < size; i++) {
                 for(int j = 0; j < size; j++) {
-                    // tex.SetPixel((int)pixelUV.x, (int)pixelUV.y, Color.black);
-                    //   tex.SetPixel((int)pixelUV.x + i, (int)pixelUV.y, Color.black);
                     tex.SetPixel((int)pixelUV.x + i, (int)pixelUV.y + j, Color.black);
-                    // tex.SetPixel((int)pixelUV.x, (int)pixelUV.y + i, Color.black);
+                    /*  tex.SetPixel((int)pixelUV.x - i/2, (int)pixelUV.y-j/2, Color.black);
+                        tex.SetPixel((int)pixelUV.x + i/2, (int)pixelUV.y + j/2, Color.black);
+                        tex.SetPixel((int)pixelUV.x, (int)pixelUV.y, Color.black);*/
+
                 }
 
             }
 
             tex.Apply();
         }
-        else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.ApplicationMenu)) {
+        else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.ApplicationMenu) || tester.ClearCanvas) {
             whiteboardTex.SetPixels(whitboardBak.GetPixels());
             whiteboardTex.Apply();
+           tester.ClearCanvas = false;
         }
     }
 }

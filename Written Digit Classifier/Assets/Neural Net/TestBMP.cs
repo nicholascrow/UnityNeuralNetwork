@@ -85,7 +85,7 @@ public class TestBMP : MonoBehaviour {
 
         if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Grip)) {
             //filter the image just drawn on the canvas
-            Bitmap b = FilterImage(TakeCameraSnapshot());
+            Bitmap[] b = FilterImage(TakeCameraSnapshot(), 30);
 
             switch(status) {
                 case Status.Train:
@@ -96,7 +96,7 @@ public class TestBMP : MonoBehaviour {
                     string networkOutput = "{ ";
                     //for each item in the computation array we print the output\
                     //print(GetSample(b).Length);
-                    double[] computation = network.Compute(GetSample(b));
+                    double[] computation = network.Compute(GetSample(b[0]));
                     foreach(double d in computation) {
                         networkOutput += d + ", ";
                     }
@@ -127,10 +127,12 @@ public class TestBMP : MonoBehaviour {
                     sphere.GetComponent<Renderer>().material = red;
 
                     //save an image for testing
-                    b.Save(Application.dataPath + "/test.jpg");
+                    b[0].Save(Application.dataPath + "/test.jpg");
 
                     //save the image into csv file
-                    StartCoroutine(SaveImageAsInt(b));
+                    for(int i = 0; i < b.Length; i++) {
+                        StartCoroutine(SaveImageAsInt(b[i]));
+                    }
 
                     break;
                 default:
@@ -168,7 +170,7 @@ public class TestBMP : MonoBehaviour {
     }
 
 
-    Bitmap FilterImage(Texture2D x) {
+    Bitmap[] FilterImage(Texture2D x, int numRotations) {
         //import the img as a bitmap
         System.Drawing.Image i = System.Drawing.Image.FromStream(new MemoryStream(x.EncodeToJPG()));
         Bitmap b = new Bitmap(i);
@@ -191,8 +193,17 @@ public class TestBMP : MonoBehaviour {
         // invFilter.ApplyInPlace(grayImg);
         threshFilter.ApplyInPlace(grayImg);
 
+       // Bitmap newImg = new Bitmap(grayImg, new Size(30, 30));
+        Bitmap[] images = new Bitmap[numRotations];
+        int index = 0;
+        for(int rotation = 0; rotation < 360; rotation += 360 / numRotations) {
+            RotateNearestNeighbor rotateFilter = new RotateNearestNeighbor(rotation, true);
+            images[index] = new Bitmap(rotateFilter.Apply(grayImg), new Size(30,30));
+            index++;
+        }
 
-        return new Bitmap(grayImg, new Size(30, 30));
+
+        return images; //new Bitmap(grayImg, new Size(30, 30));
     }
 
     IEnumerator SaveImageAsInt(Bitmap imgNow) {
@@ -260,12 +271,19 @@ public class TestBMP : MonoBehaviour {
         sphere.GetComponent<Renderer>().material = red;
 
 
-        network = new AForge.Neuro.ActivationNetwork(new AForge.Neuro.BipolarSigmoidFunction(2), imgSizexy * imgSizexy, 3);
+        network = new AForge.Neuro.ActivationNetwork(
+            new AForge.Neuro.BipolarSigmoidFunction(.5),
+            imgSizexy * imgSizexy,
+            3);
+
         network.Randomize();
         AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
-        //AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
-        learning.LearningRate = 1;
+       // AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
+        learning.LearningRate =1;
+        //learning.Momentum = .1;
+       
 
+        #region old
         /*THE BELOW COULD BE REMOVED WITH OPTIMIZATION THAT DOESNT SAVE TO THE FILE SYSTEM
         string[] lines1 = File.ReadAllLines(Application.dataPath + "/1.csv");
 
@@ -302,9 +320,7 @@ public class TestBMP : MonoBehaviour {
 
 
         END COULD BE REMOVED*/
-
-
-
+        #endregion
 
         //creating the input array
         int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
@@ -344,8 +360,8 @@ public class TestBMP : MonoBehaviour {
             epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
             yield return null;
             double error = learning.RunEpoch(input, output);
-            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 10));
-            learning.LearningRate -= learning.LearningRate / 1000;
+            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 20));
+            //learning.LearningRate -= learning.LearningRate / 1000;
             if(error == 0) {
                 break;
             }
@@ -400,7 +416,7 @@ public class TestBMP : MonoBehaviour {
                     //-1 for black
                     sample[j * imgSizexy + k] = -1;
                 }
-                else if(b.GetPixel(j, k).R > 100) {
+                else if(b.GetPixel(j, k).R >= 100) {
                     //1 for white
                     sample[j * imgSizexy + k] = 1;
                 }
@@ -416,14 +432,14 @@ public class TestBMP : MonoBehaviour {
     IEnumerator displayImage() {
         // Bitmap b = new Bitmap(numberArray[0].Count * 30,60);
 
-      /*  Texture2D x = new Texture2D(30, 30);
-        for(int i = 0; i < 30; i++) {
-            yield return null;
-            for(int j = 0; j < 30; j++) {
-                x.SetPixel(i,j, (numberArray[0][0][i *30 + j] == 1) ? UnityEngine.Color.white : UnityEngine.Color.black);
-            }
-        }*/
-       
+        /*  Texture2D x = new Texture2D(30, 30);
+          for(int i = 0; i < 30; i++) {
+              yield return null;
+              for(int j = 0; j < 30; j++) {
+                  x.SetPixel(i,j, (numberArray[0][0][i *30 + j] == 1) ? UnityEngine.Color.white : UnityEngine.Color.black);
+              }
+          }*/
+
         Texture2D x = new Texture2D(numberArray[0].Count * 30, 60);
         for(int k = 0; k < 30; k++) {
             for(int i = 0; i < numberArray[0].Count; i++) {
@@ -439,8 +455,8 @@ public class TestBMP : MonoBehaviour {
                 for(int j = 0; j < 30; j++) {
                     try {
 
-                  
-                    x.SetPixel(i * 30 + j, k, (numberArray[1][i][j * 30 + k] == -1) ? UnityEngine.Color.white : UnityEngine.Color.black);
+
+                        x.SetPixel(i * 30 + j, k, (numberArray[1][i][j * 30 + k] == -1) ? UnityEngine.Color.white : UnityEngine.Color.black);
                     }
                     catch(Exception) {
                         continue;
@@ -454,10 +470,10 @@ public class TestBMP : MonoBehaviour {
         m.SetTexture("_MainTex", x);
         addTextureHere.GetComponent<Renderer>().material = m;
         addTextureHere.GetComponent<Renderer>().sharedMaterial = m;
-        
+
 
 
     }
-   
+
 }
 
