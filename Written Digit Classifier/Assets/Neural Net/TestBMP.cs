@@ -14,9 +14,12 @@ public class TestBMP : MonoBehaviour {
         Test = 1,
         MakeData = 2
     }
-
+    enum LearningType {
+        Perceptron=0,
+        BackProp
+    }
     private Status status = Status.MakeData;
-
+    private LearningType learningMethod = LearningType.Perceptron;
 
     #region non-neural network declarations
     //text to display on
@@ -46,8 +49,8 @@ public class TestBMP : MonoBehaviour {
     public Camera c;
 
     //stream to write pixel data from
-    private StreamWriter writeNumbers;
-
+    //private StreamWriter writeNumbers;
+    private List<StreamWriter> writeNumbers;
     //the network itself
     AForge.Neuro.ActivationNetwork network;
 
@@ -57,17 +60,19 @@ public class TestBMP : MonoBehaviour {
 
     // Use this for initialization
     void Start() {
-
+        writeNumbers = new List<StreamWriter>();
         sphere.GetComponent<Renderer>().material = green;
 
         switch(status) {
             case Status.Train:
-                StartCoroutine(TrainNetwork());
+                TrainNetwork();
                 break;
             case Status.Test:
                 break;
             case Status.MakeData:
-                writeNumbers = File.AppendText(Application.dataPath + "/" + currentAddIndex + ".csv");
+                writeNumbers.Add(File.AppendText(Application.dataPath + "/" + 0 + ".csv"));
+                writeNumbers.Add(File.AppendText(Application.dataPath + "/" + 1 + ".csv"));
+                //writeNumbers = File.AppendText(Application.dataPath + "/" + currentAddIndex + ".csv");
                 break;
             default:
                 break;
@@ -158,15 +163,19 @@ public class TestBMP : MonoBehaviour {
         }
 
         if(status == Status.Train) {
-            StartCoroutine(TrainNetwork());
+            TrainNetwork();
 
             status = Status.Test;
         }
     }
 
     public void OnApplicationQuit() {
-        if(writeNumbers != null)
-            writeNumbers.Close();
+        if(writeNumbers != null) {
+            foreach(var item in writeNumbers) {
+                item.Close();
+            }
+        }
+           // writeNumbers.Close();
     }
 
 
@@ -242,7 +251,7 @@ public class TestBMP : MonoBehaviour {
             + "\nIndex 1: " + numberArray[1].Count + " items";
 
 
-        writeNumbers.WriteLine(writeLinetoFile.TrimEnd(','));
+        writeNumbers[currentAddIndex].WriteLine(writeLinetoFile.TrimEnd(','));
         sphere.GetComponent<Renderer>().material = green;
         ClearCanvas = true;
     }
@@ -265,112 +274,22 @@ public class TestBMP : MonoBehaviour {
 
     }
 
-    IEnumerator TrainNetwork() {
+    void TrainNetwork() {
 
         //while we train the network we shouldnt allow user input
         sphere.GetComponent<Renderer>().material = red;
 
-
-        network = new AForge.Neuro.ActivationNetwork(
-            new AForge.Neuro.BipolarSigmoidFunction(.5),
-            imgSizexy * imgSizexy,
-            3);
-
-        network.Randomize();
-        AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
-       // AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
-        learning.LearningRate =1;
-        //learning.Momentum = .1;
-       
-
-        #region old
-        /*THE BELOW COULD BE REMOVED WITH OPTIMIZATION THAT DOESNT SAVE TO THE FILE SYSTEM
-        string[] lines1 = File.ReadAllLines(Application.dataPath + "/1.csv");
-
-        string[] lines2 = File.ReadAllLines(Application.dataPath + "/2.csv");
-
-
-        double[][] input = new double[6][];
-        for(int i = 0; i < 6; i++) {
-            yield return null;
-            if(i < 3) {
-                double[] p = new double[lines1[i].Split(',').Length];
-                string[] s = lines1[i].Split(',');
-                for(int j = 0; j < s.Length; j++) {
-                    p[j] = Convert.ToInt32(s[j]);
-                }
-                input[i] = p;
-            }
-            else {
-                double[] p = new double[lines2[i - 3].Split(',').Length];
-                string[] s = lines2[i - 3].Split(',');
-                for(int j = 0; j < s.Length; j++) {
-                    p[j] = Convert.ToInt32(s[j]);
-                }
-                input[i] = p;
-            }
-
-        }
-
-        double[][] output = new double[6][] {
-                    new double[3] { 1, 1, 1},new double[3] { 1, 1 ,1},new double[3] { 1, 1 ,1},//1
-                    new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1},new double[3] { -1, -1 ,-1}//2
-        };
-           
-
-
-        END COULD BE REMOVED*/
-        #endregion
-
-        //creating the input array
-        int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
-        double[][] input = new double[smallestArraySize * 2][];
-        for(int i = 0; i < input.GetLength(0); i++) {
-            print("input is actually the right size");
-            if(i < smallestArraySize) {
-                input[i] = numberArray[0][i];
-            }
-            else {
-                input[i] = numberArray[1][i - smallestArraySize];
-            }
-        }
-        if(input.Length == 0) {
-            throw new NotSupportedException("You need to add something for both characters!");
-        }
-
-        // numberArray[0].CopyTo(input, 0);
-        // numberArray[1].CopyTo(input, smallestArraySize);
-
-        double[][] output = new double[smallestArraySize * 2][];
-        for(int i = 0; i < smallestArraySize; i++) {
-            //not sure if this is correct
-            output[i] = new double[3] { 1, 1, 1 };
-        }
-        for(int i = smallestArraySize; i < smallestArraySize * 2; i++) {
-            output[i] = new double[3] { -1, -1, -1 };
-        }
-
-
-
-
-        bool needToStop = false;
-        int iteration = 0;
-        int maxIteration = 5000;
-        while(!needToStop) {
-            epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
-            yield return null;
-            double error = learning.RunEpoch(input, output);
-            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 20));
-            //learning.LearningRate -= learning.LearningRate / 1000;
-            if(error == 0) {
+        switch(learningMethod) {
+            case LearningType.Perceptron:
+                StartCoroutine(TrainPerceptron());
                 break;
-            }
-            else if(iteration < maxIteration)
-                iteration++;
-            else
-                needToStop = true;
-            Debug.LogFormat("{0} {1}", error, iteration);
+            case LearningType.BackProp:
+                StartCoroutine(TrainBackprop());
+                break;
+            default:
+                break;
         }
+        
 
         Bitmap b = AForge.Imaging.Image.FromFile(Application.dataPath + "/test.jpg");
         //Reading A Sample to test Netwok
@@ -405,6 +324,148 @@ public class TestBMP : MonoBehaviour {
 
 
     }
+    IEnumerator TrainPerceptron() {
+
+        //this is the network itself -- what does everything
+        network = new AForge.Neuro.ActivationNetwork(
+            new AForge.Neuro.BipolarSigmoidFunction(2), //this function maps from -1 to 1 --> alpha is the 2.
+            imgSizexy * imgSizexy, //this is the input, which should be the size of our image (in pixels)
+           2); //the output --> for now this is 2, it is the number of outputs.
+
+        network.Randomize(); // randomize the weights in the network so we can train it.
+
+        //the learning method AKA how we are teaching the network to learn
+        AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
+
+        //The rate at which the network learns
+        learning.LearningRate = 1;
+
+      
+        //creating the input array
+
+        //we check both sets of images, and check which one is smaller.
+        int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
+
+        //the input array which we feed into the network each epoch
+        double[][] input = new double[smallestArraySize * 2][];
+
+        //move the inputs from earlier steps into something we can read
+        for(int i = 0; i < input.GetLength(0); i++) {
+            if(i < smallestArraySize) {
+                input[i] = numberArray[0][i];
+            }
+            else {
+                input[i] = numberArray[1][i - smallestArraySize];
+            }
+        }
+        if(input.Length == 0) {
+            throw new NotSupportedException("You need to add something for both characters!");
+        }
+        
+        //this is the output array which outputs our result
+        double[][] output = new double[smallestArraySize * 2][];
+        for(int i = 0; i < smallestArraySize; i++) {
+            //not sure if this is correct
+            output[i] = new double[3] { 1, 1, 1 };
+        }
+        for(int i = smallestArraySize; i < smallestArraySize * 2; i++) {
+            output[i] = new double[3] { -1, -1, -1 };
+        }
+
+
+
+
+        //should stop?
+        bool needToStop = false;
+
+        //num iterations
+        int iteration = 0;
+
+        //when to stop iterations
+        int maxIteration = 5000;
+
+        //run this until we have to stop due to finishing training or max training
+        while(!needToStop) {
+            epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
+            yield return null;
+            double error = learning.RunEpoch(input, output);
+            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 20));
+            //learning.LearningRate -= learning.LearningRate / 1000;
+            if(error == 0) {
+                break;
+            }
+            else if(iteration < maxIteration)
+                iteration++;
+            else
+                needToStop = true;
+            Debug.LogFormat("{0} {1}", error, iteration);
+        }
+    }
+    IEnumerator TrainBackprop() {
+        network = new AForge.Neuro.ActivationNetwork(
+            new AForge.Neuro.BipolarSigmoidFunction(.5),
+            imgSizexy * imgSizexy,
+           100, 2);
+
+        network.Randomize();
+
+       
+        AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
+        learning.LearningRate = .1;
+          learning.Momentum = 0;
+
+        //creating the input array
+        int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
+        double[][] input = new double[smallestArraySize * 2][];
+        for(int i = 0; i < input.GetLength(0); i++) {
+            print("input is actually the right size");
+            if(i < smallestArraySize) {
+                input[i] = numberArray[0][i];
+            }
+            else {
+                input[i] = numberArray[1][i - smallestArraySize];
+            }
+        }
+        if(input.Length == 0) {
+            throw new NotSupportedException("You need to add something for both characters!");
+        }
+
+        // numberArray[0].CopyTo(input, 0);
+        // numberArray[1].CopyTo(input, smallestArraySize);
+
+        double[][] output = new double[smallestArraySize * 2][];
+        for(int i = 0; i < smallestArraySize; i++) {
+            //not sure if this is correct
+            output[i] = new double[2] { 1, 1};
+        }
+        for(int i = smallestArraySize; i < smallestArraySize * 2; i++) {
+            output[i] = new double[2] { -1, -1};
+        }
+
+
+
+
+        bool needToStop = false;
+        int iteration = 0;
+        int maxIteration = 5000;
+        while(!needToStop) {
+            epochText.text = "Current Epoch: " + iteration + "/" + maxIteration;
+            yield return null;
+            double error = learning.RunEpoch(input, output);
+            errorText.text = "Percent Error: " + error.ToString("0." + new string('#', 20));
+            //learning.LearningRate -= learning.LearningRate / 1000;
+            if(error == 0) {
+                break;
+            }
+            else if(iteration < maxIteration)
+                iteration++;
+            else
+                needToStop = true;
+            Debug.LogFormat("{0} {1}", error, iteration);
+        }
+    }
+
+
 
     double[] GetSample(Bitmap b) {
         double[] sample = new double[imgSizexy * imgSizexy];
