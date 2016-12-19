@@ -7,19 +7,21 @@ using AForge;
 using AForge.Imaging.Filters;
 using System;
 using UnityEngine.UI;
+using Accord;
 
 public class TestBMP : MonoBehaviour {
-    enum Status {
+    enum Mode {
         Train = 0,
-        Test = 1,
-        MakeData = 2
+        Test,
+        MakeData,
+        LoadLearnedModel
     }
     enum LearningType {
         Perceptron=0,
         BackProp
     }
-    private Status status = Status.MakeData;
-    private LearningType learningMethod = LearningType.Perceptron;
+    private Mode mode = Mode.MakeData;
+    private LearningType learningMethod = LearningType.BackProp;
 
     #region non-neural network declarations
     //text to display on
@@ -52,7 +54,7 @@ public class TestBMP : MonoBehaviour {
     //private StreamWriter writeNumbers;
     private List<StreamWriter> writeNumbers;
     //the network itself
-    AForge.Neuro.ActivationNetwork network;
+    Accord.Neuro.ActivationNetwork network;
 
     private List<double[]>[] numberArray;
 
@@ -63,16 +65,19 @@ public class TestBMP : MonoBehaviour {
         writeNumbers = new List<StreamWriter>();
         sphere.GetComponent<Renderer>().material = green;
 
-        switch(status) {
-            case Status.Train:
+        switch(mode) {
+            case Mode.Train:
                 TrainNetwork();
                 break;
-            case Status.Test:
+            case Mode.Test:
                 break;
-            case Status.MakeData:
+            case Mode.MakeData:
                 writeNumbers.Add(File.AppendText(Application.dataPath + "/" + 0 + ".csv"));
                 writeNumbers.Add(File.AppendText(Application.dataPath + "/" + 1 + ".csv"));
                 //writeNumbers = File.AppendText(Application.dataPath + "/" + currentAddIndex + ".csv");
+                break;
+            case Mode.LoadLearnedModel:
+                LoadLearnedModel();
                 break;
             default:
                 break;
@@ -90,13 +95,13 @@ public class TestBMP : MonoBehaviour {
 
         if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Grip)) {
             //filter the image just drawn on the canvas
-            Bitmap[] b = FilterImage(TakeCameraSnapshot(), 30);
+            Bitmap[] b = FilterImage(TakeCameraSnapshot(), 10);
 
-            switch(status) {
-                case Status.Train:
+            switch(mode) {
+                case Mode.Train:
 
                     break;
-                case Status.Test:
+                case Mode.Test:
                     // beginning of array
                     string networkOutput = "{ ";
                     //for each item in the computation array we print the output\
@@ -108,11 +113,11 @@ public class TestBMP : MonoBehaviour {
                     //final brace for presentation
                     networkOutput = networkOutput.TrimEnd(',') + " }";
 
-                    if(computation[0] == 1) {
+                    if(computation[0] > 0) {
                         epochText.text = "You entered a 0!" + networkOutput;
                         //one
                     }
-                    else if(computation[0] == -1) {
+                    else if(computation[0] <= 0) {
                         epochText.text = "You entered a 1!" + networkOutput;
                         //two
                     }
@@ -126,7 +131,7 @@ public class TestBMP : MonoBehaviour {
                     ClearCanvas = true;
                     b = null;
                     break;
-                case Status.MakeData:
+                case Mode.MakeData:
 
                     //make a sphere this color
                     sphere.GetComponent<Renderer>().material = red;
@@ -140,17 +145,21 @@ public class TestBMP : MonoBehaviour {
                     }
 
                     break;
+                case Mode.LoadLearnedModel:
+                    //make a sphere this color
+                    sphere.GetComponent<Renderer>().material = red;
+                    break;
                 default:
                     break;
             }
         }
         else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.ApplicationMenu)) {
-            if(status == Status.MakeData) {
-                status = Status.Train;
+            if(mode == Mode.MakeData) {
+                mode = Mode.Train;
                 StartCoroutine(displayImage());
             }
             else {
-                status = Status.MakeData;
+                mode = Mode.MakeData;
             }
         }
         else if(device.GetTouchDown(SteamVR_Controller.ButtonMask.Trigger)) {
@@ -162,10 +171,10 @@ public class TestBMP : MonoBehaviour {
                  + "\nIndex 1: " + numberArray[1].Count + " items";
         }
 
-        if(status == Status.Train) {
+        if(mode == Mode.Train) {
             TrainNetwork();
 
-            status = Status.Test;
+            mode = Mode.Test;
         }
     }
 
@@ -178,7 +187,12 @@ public class TestBMP : MonoBehaviour {
            // writeNumbers.Close();
     }
 
-
+    public void LoadLearnedModel() {
+        print(Application.dataPath + "/net");
+        print(File.Exists(Application.dataPath + "/net"));
+        network = (Accord.Neuro.ActivationNetwork)Accord.Neuro.Network.Load(Application.dataPath + "/net");
+        mode = Mode.Test;
+    }
     Bitmap[] FilterImage(Texture2D x, int numRotations) {
         //import the img as a bitmap
         System.Drawing.Image i = System.Drawing.Image.FromStream(new MemoryStream(x.EncodeToJPG()));
@@ -203,11 +217,13 @@ public class TestBMP : MonoBehaviour {
         threshFilter.ApplyInPlace(grayImg);
 
        // Bitmap newImg = new Bitmap(grayImg, new Size(30, 30));
-        Bitmap[] images = new Bitmap[numRotations];
+        Bitmap[] images = new Bitmap[numRotations*2];
         int index = 0;
-        for(int rotation = 0; rotation < 360; rotation += 360 / numRotations) {
+        for(int rotation = 0; rotation < numRotations; rotation ++) {
             RotateNearestNeighbor rotateFilter = new RotateNearestNeighbor(rotation, true);
             images[index] = new Bitmap(rotateFilter.Apply(grayImg), new Size(30,30));
+            RotateNearestNeighbor rotateFilter1 = new RotateNearestNeighbor(-rotation, true);
+            images[index+1] = new Bitmap(rotateFilter1.Apply(grayImg), new Size(30, 30));
             index++;
         }
 
@@ -327,15 +343,15 @@ public class TestBMP : MonoBehaviour {
     IEnumerator TrainPerceptron() {
 
         //this is the network itself -- what does everything
-        network = new AForge.Neuro.ActivationNetwork(
-            new AForge.Neuro.BipolarSigmoidFunction(2), //this function maps from -1 to 1 --> alpha is the 2.
+        network = new Accord.Neuro.ActivationNetwork(
+            new Accord.Neuro.BipolarSigmoidFunction(2), //this function maps from -1 to 1 --> alpha is the 2.
             imgSizexy * imgSizexy, //this is the input, which should be the size of our image (in pixels)
            2); //the output --> for now this is 2, it is the number of outputs.
 
         network.Randomize(); // randomize the weights in the network so we can train it.
 
         //the learning method AKA how we are teaching the network to learn
-        AForge.Neuro.Learning.PerceptronLearning learning = new AForge.Neuro.Learning.PerceptronLearning(network);
+        Accord.Neuro.Learning.PerceptronLearning learning = new Accord.Neuro.Learning.PerceptronLearning(network);
 
         //The rate at which the network learns
         learning.LearningRate = 1;
@@ -402,17 +418,17 @@ public class TestBMP : MonoBehaviour {
         }
     }
     IEnumerator TrainBackprop() {
-        network = new AForge.Neuro.ActivationNetwork(
-            new AForge.Neuro.BipolarSigmoidFunction(.5),
+        network = new Accord.Neuro.ActivationNetwork(
+            new Accord.Neuro.BipolarSigmoidFunction(.5),
             imgSizexy * imgSizexy,
            100, 2);
 
         network.Randomize();
 
        
-        AForge.Neuro.Learning.BackPropagationLearning learning = new AForge.Neuro.Learning.BackPropagationLearning(network);
+        Accord.Neuro.Learning.ResilientBackpropagationLearning learning = new Accord.Neuro.Learning.ResilientBackpropagationLearning(network);
         learning.LearningRate = .1;
-          learning.Momentum = 0;
+         // learning.Momentum = 0;
 
         //creating the input array
         int smallestArraySize = numberArray[0].Count <= numberArray[1].Count ? numberArray[0].Count : numberArray[1].Count;
